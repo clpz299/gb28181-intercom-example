@@ -1,0 +1,10 @@
+spring:
+  main:
+    allow-bean-definition-overriding: true
+  application:
+    name: gb28181-intercom
+
+server:
+  port: 8016
+  servlet:
+    context-path: /intercom
