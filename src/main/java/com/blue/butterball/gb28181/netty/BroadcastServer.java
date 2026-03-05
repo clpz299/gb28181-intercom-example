@@ -56,26 +56,43 @@ public class BroadcastServer  extends Thread {
         @Override
         public void run() {
             RtpPack rp = new RtpPack();
+            // 初始化 RTP 包，放在循环外，避免序列号和时间戳被重置
+            rp.init(8, 12, 8000);
 
-            String recorderDir = "D:\\recorders\\" + DateUtil.today() + "\\" + PORT;
+            // 使用项目根目录下的 recorders 文件夹，与 WebSocketHandler 保持一致
+            String projectDir = System.getProperty("user.dir");
+            String recorderDir = projectDir + File.separator + "recorders" + File.separator + DateUtil.today() + File.separator + PORT + File.separator;
+            
             try {
                 this.out.flush();
-                while (true) {
+                while (!isInterrupted() && !socket.isClosed()) {
                     List<File> recorders = FileUtil.loopFiles(recorderDir);
-                    if (fileIndex >= recorders.size()) continue;
-                    if (recorders.size() < 1) continue;
+                    
+                    // 如果没有新文件，或者文件还没生成，稍微等待一下，避免 CPU 空转
+                    if (recorders == null || recorders.isEmpty() || fileIndex >= recorders.size()) {
+                        try {
+                            Thread.sleep(10); 
+                        } catch (InterruptedException e) {
+                            break;
+                        }
+                        continue;
+                    }
+
                     byte[] bytes = FileUtils.readFileToByteArray(recorders.get(fileIndex));
+                    // 确保读取到数据再发送
+                    if (bytes != null && bytes.length > 0) {
+                        out.write(rp.sendG711A(bytes));
+                        out.flush();
+                    }
+                    
                     fileIndex++;
-                    rp.init(8,12,8000);
-                    out.write(rp.sendG711A(bytes));
-                    out.flush();
                 }
 
             } catch (Exception e) {
                 e.printStackTrace();
+            } finally {
                 close();
             }
-
         }
     }
 
@@ -110,8 +127,10 @@ public class BroadcastServer  extends Thread {
         try {
             fileIndex = 0;
             // 会话关闭之后删除录音文件
-            FileUtil.del("D:\\recorders\\" + DateUtil.today()
-                    + "\\" + PORT);
+            String projectDir = System.getProperty("user.dir");
+            String recorderDir = projectDir + File.separator + "recorders" + File.separator + DateUtil.today() + File.separator + PORT + File.separator;
+            FileUtil.del(recorderDir);
+            
             server.close();
             System.out.println("Server closed.");
         } catch (IOException e) {

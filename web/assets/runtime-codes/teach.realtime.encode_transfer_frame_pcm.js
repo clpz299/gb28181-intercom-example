@@ -136,6 +136,7 @@ var RealTimeSendTry=function(buffers,bufferSampleRate,isClose){
 
 
 
+var ws;
 //=====数据传输函数==========
 var TransferUpload=function(number,blobOrNull,duration,blobRec,isClose){
 	transferUploadNumberMax=Math.max(transferUploadNumberMax,number);
@@ -143,7 +144,8 @@ var TransferUpload=function(number,blobOrNull,duration,blobRec,isClose){
 		var blob=blobOrNull;
 		var encTime=blob.encTime;
 		
-		//*********发送方式一：Base64文本发送***************
+		//*********发送方式一：Base64文本发送 (已注释) ***************
+		/*
 		var reader=new FileReader();
 		reader.onloadend=function(){
 			var base64=(/.+;\s*base64\s*,\s*(.+)$/i.exec(reader.result)||[])[1];
@@ -156,27 +158,39 @@ var TransferUpload=function(number,blobOrNull,duration,blobRec,isClose){
 			//这里啥也不干
 		};
 		reader.readAsDataURL(blob);
+		*/
 		
-		//*********发送方式二：Blob二进制发送***************
-		//可以实现
-		//WebSocket send(blob) ...
-		//WebRTC send(blob) ...
-		//XMLHttpRequest send(blob) ...
+		//*********发送方式二：Blob二进制发送 (推荐) ***************
+		if(!ws) {
+			ws = new WebSocket('ws://127.0.0.1:7211/ws_pcm?deviceId=填入设备id');
+			ws.binaryType = 'arraybuffer'; // 设置接收二进制类型
+			ws.onopen = evt => {
+				console.log("ws talk open (Binary Mode)");
+			}
+			ws.onclose = evt => {
+				recStop();
+				console.log("ws talk close");
+			}
+			ws.onerror = evt => {
+				console.log("ws talk error", evt);
+				recStop();
+			}
+		}
+
+		if(ws && ws.readyState === WebSocket.OPEN) {
+			// 直接发送 Blob 对象，浏览器会自动处理为二进制帧
+			ws.send(blob);
+			console.log("Sent binary blob, size: " + blob.size);
+		}
 		
-		
-		//****这里仅 console.log一下 意思意思****
-		var numberFail=number<transferUploadNumberMax?'<span style="color:red">顺序错乱的数据，如果要求不高可以直接丢弃</span>':"";
-		var logMsg="No."+(number<100?("000"+number).substr(-3):number)+numberFail;
-		
-		Runtime.LogAudio(blob,duration,blobRec,logMsg+"花"+("___"+encTime).substr(-3)+"ms");
-		
-		if(true && number%100==0){//emmm....
-			Runtime.LogClear();
-		};
 	};
 	
 	if(isClose){
-		Runtime.Log("No."+(number<100?("000"+number).substr(-3):number)+":已停止传输");
+		console.log("No."+(number<100?("000"+number).substr(-3):number)+":已停止传输");
+		if(ws) {
+			ws.close();
+			ws = null;
+		}
 	};
 };
 

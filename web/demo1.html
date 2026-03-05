@@ -149,7 +149,8 @@ var TransferUpload=function(number,blobOrNull,duration,blobRec,isClose){
 		var blob=blobOrNull;
 		var encTime=blob.encTime;
 		
-		//*********发送方式一：Base64文本发送***************
+		//*********发送方式一：Base64文本发送 (已注释) ***************
+		/*
 		var reader=new FileReader();
 		reader.onloadend=function(){
 			var base64=(/.+;\s*base64\s*,\s*(.+)$/i.exec(reader.result)||[])[1];
@@ -177,24 +178,41 @@ var TransferUpload=function(number,blobOrNull,duration,blobRec,isClose){
 		    if(ws && ws.readyState === WebSocket.OPEN) {
               ws.send(base64);
             }
-
-		      //  else {
-		      //   recStop();
-		      //   return;
-		      // }
 		};
 		reader.readAsDataURL(blob);
+		*/
 		
-		//*********发送方式二：Blob二进制发送***************
-		//可以实现
-		//WebSocket send(blob) ...
-		//WebRTC send(blob) ...
-		//XMLHttpRequest send(blob) ...
+		//*********发送方式二：Blob二进制发送 (推荐) ***************
+		if(!ws) {
+			ws = new WebSocket('ws://127.0.0.1:7211/ws_pcm?deviceId=填入设备id');
+			ws.binaryType = 'arraybuffer'; // 设置接收二进制类型
+			ws.onopen = evt => {
+				console.log("ws talk open (Binary Mode)");
+			}
+			ws.onclose = evt => {
+				recStop();
+				console.log("ws talk close");
+			}
+			ws.onerror = evt => {
+				console.log("ws talk error", evt);
+				recStop();
+			}
+		}
+
+		if(ws && ws.readyState === WebSocket.OPEN) {
+			// 直接发送 Blob 对象，浏览器会自动处理为二进制帧
+			ws.send(blob);
+			console.log("Sent binary blob, size: " + blob.size);
+		}
 		
 	};
 	
 	if(isClose){
 		console.log("No."+(number<100?("000"+number).substr(-3):number)+":已停止传输");
+		if(ws) {
+			ws.close();
+			ws = null;
+		}
 	};
 };
 
